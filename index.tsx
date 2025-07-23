@@ -13,6 +13,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { createBlob, decode, decodeAudioData } from "./utils";
 import { GdmLiveAudioVisuals3D } from "./visual-3d";
+import InstructionPopup from "./InstructionPopup";
 
 const workletCode = `
 class AudioProcessor extends AudioWorkletProcessor {
@@ -31,10 +32,9 @@ registerProcessor('audio-processor', AudioProcessor);
 
 const App = () => {
   const [isRecording, setIsRecording] = useState(false);
-  const [status, setStatus] = useState(
-    "Click Start to begin the conversation."
-  );
+  const [status, setStatus] = useState("Click the red button to begin.");
   const [error, setError] = useState("");
+  const [showInstructions, setShowInstructions] = useState(true);
 
   const [audioGraph] = useState(() => {
     const Ctx = window.AudioContext || (window as any).webkitAudioContext;
@@ -86,13 +86,15 @@ const App = () => {
 
     session.current?.close();
     session.current = null;
-    setStatus("Recording stopped. Click Start to begin again.");
+    setStatus("Ready. Click the red button to ask another question.");
   }, []);
 
   const startAudioCapture = useCallback(async () => {
     if (!mediaStream.current || !session.current) {
       console.error("Audio capture prerequisites not met.");
-      setStatus("Error: Audio capture prerequisites not met.");
+      setStatus(
+        "Error: Microphone or AI connection not ready. Please try again."
+      );
       return;
     }
 
@@ -120,7 +122,7 @@ const App = () => {
       workletNode.current.connect(inputCtx.destination);
 
       setIsRecording(true);
-      setStatus("🔴 Recording... Bolna shuru karein!");
+      setStatus("🔴 Recording... Ask your question now!");
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       console.error("Error starting audio capture:", err);
@@ -138,7 +140,7 @@ const App = () => {
         model: model,
         config: {
           systemInstruction:
-            'You are a friendly and helpful AI assistant named Riya. Your voice should be soft, clear, and pleasing. Start the conversation with a warm, welcoming greeting in Hinglish, for example, "Namaste, main Riya hu. Main aapki kya sahayata kar sakti hu?". After the greeting, continue all responses in Hinglish (a mix of Hindi and English).',
+            "You are a friendly and helpful AI assistant named Riya. Your voice should be soft, clear, and pleasing. Respond directly to user questions in Hinglish (a mix of Hindi and English) without introducing yourself first. Skip any greeting or introduction and answer questions immediately. Keep responses concise and to the point.",
           responseModalities: [Modality.AUDIO],
         },
         callbacks: {
@@ -201,7 +203,7 @@ const App = () => {
 
   useEffect(() => {
     client.current = new GoogleGenAI({
-      apiKey: import.meta.env.VITE_API_KEY || "", // Ensure API_KEY is always a string
+      apiKey: import.meta.env.VITE_GEMINI_API_KEY || "", // Use the environment variable from .env.local
     });
     nextStartTime.current = audioGraph.outputCtx.currentTime;
 
@@ -215,6 +217,7 @@ const App = () => {
   const startRecording = useCallback(async () => {
     if (isRecordingRef.current) return;
     setError("");
+    setShowInstructions(false);
 
     // First, get microphone permission
     setStatus("Requesting microphone access...");
@@ -241,8 +244,12 @@ const App = () => {
       sources.current.delete(source);
     }
     nextStartTime.current = 0;
-    setStatus("Session reset. Click Start to begin again.");
+    setStatus(
+      "Session reset. Click the red button to start a new conversation."
+    );
     setError("");
+    // Show instructions again when resetting
+    setShowInstructions(true);
   }, [isRecording, stopRecording]);
 
   const styles = `
@@ -301,6 +308,9 @@ const App = () => {
     <>
       <style>{styles}</style>
       <div>
+        {showInstructions && (
+          <InstructionPopup onClose={() => setShowInstructions(false)} />
+        )}
         <div className="controls">
           <button
             id="resetButton"
