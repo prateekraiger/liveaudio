@@ -106,7 +106,7 @@ const App = () => {
       URL.revokeObjectURL(url);
 
       workletNode.current = new AudioWorkletNode(inputCtx, "audio-processor");
-      workletNode.current.port.onmessage = (event) => {
+      workletNode.current.port.onmessage = (event: MessageEvent) => {
         if (!isRecordingRef.current) return;
         const pcmData = event.data;
         session.current?.sendRealtimeInput({ media: createBlob(pcmData) });
@@ -149,14 +149,14 @@ const App = () => {
             const audio =
               message.serverContent?.modelTurn?.parts &&
               message.serverContent.modelTurn.parts[0]?.inlineData;
-            if (audio) {
+            if (audio?.data) {
               const { outputCtx, outputGain } = audioGraph;
               nextStartTime.current = Math.max(
                 nextStartTime.current,
                 outputCtx.currentTime
               );
               const audioBuffer = await decodeAudioData(
-                decode(audio.data),
+                decode(audio.data as string),
                 outputCtx,
                 24000,
                 1
@@ -201,7 +201,7 @@ const App = () => {
 
   useEffect(() => {
     client.current = new GoogleGenAI({
-      apiKey: process.env.API_KEY,
+      apiKey: import.meta.env.VITE_API_KEY || "", // Ensure API_KEY is always a string
     });
     nextStartTime.current = audioGraph.outputCtx.currentTime;
 
